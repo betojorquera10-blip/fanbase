@@ -1,0 +1,143 @@
+// Modelo de datos de FanBase.
+//
+// Pensado para:
+//   - Varias fuentes de entradas (hoy solo Puntoticket).
+//   - Frecuencia de actualización ajustable SIN tocar código (tablas Fuente y
+//     ReglaFrecuencia).
+//   - Consultas tipo "eventos del fin de semana con entradas <= $10.000", que
+//     necesitan TODOS los precios por sector, no solo el más barato.
+//
+// Fechas: guardamos las fechas del evento como texto "YYYY-MM-DD" y la hora
+// como "HH:MM", en hora local de Chile. Así "este sábado" nunca se corre de
+// día por conversiones de zona horaria, y el texto ISO se compara y ordena
+// correctamente. Las marcas de auditoría (creadoEn, etc.) sí son DateTime.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Un sitio de venta de entradas.
+model Fuente {
+  id                 String    @id // "puntoticket"
+  nombre             String
+  urlListado         String
+  activa             Boolean   @default(true)
+  // Cada cuántas horas se vuelve a descargar el listado (detecta eventos
+  // nuevos y los que desaparecen). Es una sola descarga: barato.
+  horasEntreListados Int       @default(3)
+  ultimoListadoEn    DateTime?
+
+  eventos     Evento[]
+  ejecuciones EjecucionScraper[]
+}
+
+// Cada cuánto se revisa el DETALLE (precios) de un evento, según cuántos días
+// faltan. Se aplica la primera regla (por `orden`) cuyo diasHastaEventoMax
+// sea >= días que faltan; diasHastaEventoMax = null significa "el resto".
+model ReglaFrecuencia {
+  id                   Int    @id @default(autoincrement())
+  orden                Int    @unique
+  descripcion          String
+  diasHastaEventoMax   Int?
+  horasEntreRevisiones Int
+}
+
+model Recinto {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  comuna    String   @default("")
+  direccion String?
+  latitud   Float?
+  longitud  Float?
+  creadoEn  DateTime @default(now())
+
+  eventos Evento[]
+
+  @@unique([nombre, comuna])
+}
+
+model Evento {
+  id        Int    @id @default(autoincrement())
+  fuenteId  String
+  fuente    Fuente @relation(fields: [fuenteId], references: [id])
+  idExterno String // ID del evento en la fuente, ej. "PLS021" en Puntoticket
+
+  nombre         String
+  artista        String?
+  url            String
+  imagenUrl      String?
+  generoOriginal String? // tal como lo escribe la fuente: "J-Rock", "Romántico"...
+
+  fechaInicio String? // "YYYY-MM-DD"
+  fechaFin    String? // "YYYY-MM-DD" (igual a fechaInicio si es de un día)
+  hora        String? // "HH:MM"
+
+  recintoId Int?
+  recinto   Recinto? @relation(fields: [recintoId], references: [id])
+
+  // Resumen de precios en CLP (calculado desde los sectores, para filtrar rápido).
+  precioBaseMin  Int? // precio sin cargo por servicio
+  precioTotalMin Int? // precio + cargo por servicio
+  precioTotalMax Int?
+  moneda         String?
+  agotado        Boolean? // null = desconocido
+  // Si la fuente publica los precios como imagen (sin sectores en el HTML).
+  imagenPreciosUrl String?
+
+  // Ciclo de vida
+  activo                 Boolean   @default(true) // false si ya no aparece en el listado
+  primeraVezVistoEn      DateTime  @default(now())
+  ultimaVezVistoEn       DateTime  @default(now())
+  detalleActualizadoEn   DateTime?
+  proximaRevisionDetalle DateTime  @default(now()) // nuevo → se revisa en la próxima corrida
+  erroresDetalle         Int       @default(0) // fallos seguidos al leer el detalle
+
+  sectores Sector[]
+
+  @@unique([fuenteId, idExterno])
+  @@index([fechaInicio])
+  @@index([activo, proximaRevisionDetalle])
+}
+
+// Un tipo de entrada dentro de un evento: "CANCHA", "PLATEA ALTA"...
+model Sector {
+  id       Int    @id @default(autoincrement())
+  eventoId Int
+  evento   Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  nombre   String
+  precio   Int? // precio base en CLP (algunas páginas solo muestran el total)
+  cargo    Int? // cargo por servicio
+  total    Int? // precio + cargo
+
+  @@unique([eventoId, nombre])
+  @@index([precio])
+  @@index([total])
+}
+
+// Registro de cada corrida del scraper: para ver qué pasó y detectar fallas.
+model EjecucionScraper {
+  id                  Int       @id @default(autoincrement())
+  fuenteId            String
+  fuente              Fuente    @relation(fields: [fuenteId], references: [id])
+  iniciadaEn          DateTime  @default(now())
+  terminadaEn         DateTime?
+  estado              String    @default("en_curso") // en_curso | ok | con_errores | fallida
+  listadoDescargado   Boolean   @default(false)
+  eventosEnListado    Int       @default(0)
+  eventosNuevos       Int       @default(0)
+  eventosDesactivados Int       @default(0)
+  detallesRevisados   Int       @default(0)
+  errores             Int       @default(0)
+  // Para estimar costos: cuánto se descargó en esta corrida.
+  solicitudesHttp     Int       @default(0)
+  bytesDescargados    Int       @default(0)
+  // Tokens de IA usados (hoy siempre 0: Puntoticket se lee sin IA). Queda
+  // listo para fuentes futuras que sí necesiten un modelo.
+  tokensIA            Int       @default(0)
+  mensaje             String?
+}
