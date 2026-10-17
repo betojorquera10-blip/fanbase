@@ -17,8 +17,9 @@
 // ============================================================================
 
 import { prisma } from "@/lib/db";
-import { hoyEnChile } from "@/lib/eventos";
+import { hoyEnChile } from "@/lib/fechas";
 import { descargarHtml, esperar, leerEstadisticas, reiniciarEstadisticas } from "@/scraper/http";
+import { horasHastaProximaRevision, tocaListado } from "@/scraper/frecuencia";
 import { parsearDetalle, parsearListado, type EventoListado, type SectorPrecio } from "./parse";
 
 const FUENTE_ID = "puntoticket";
@@ -29,19 +30,6 @@ export interface OpcionesSincronizacion {
   forzarListado?: boolean; // descarga el listado aunque no le toque
   forzarDetalles?: boolean; // revisa el detalle de todos los eventos activos
   limiteDetalles?: number; // máximo de páginas de detalle por corrida
-}
-
-function diasEntre(desde: string, hasta: string): number {
-  return Math.round((Date.parse(hasta) - Date.parse(desde)) / (24 * HORA_MS));
-}
-
-async function horasHastaProximaRevision(fechaInicio: string | null): Promise<number> {
-  const reglas = await prisma.reglaFrecuencia.findMany({ orderBy: { orden: "asc" } });
-  if (reglas.length === 0) return 24; // sin reglas configuradas: una vez al día
-  const dias = fechaInicio ? diasEntre(hoyEnChile(), fechaInicio) : Number.POSITIVE_INFINITY;
-  const regla =
-    reglas.find((r) => r.diasHastaEventoMax == null || dias <= r.diasHastaEventoMax) ?? reglas[reglas.length - 1];
-  return regla.horasEntreRevisiones;
 }
 
 // Puntoticket a veces repite el nombre de un sector (ej. dos funciones con
@@ -212,12 +200,8 @@ export async function sincronizarPuntoticket(opciones: OpcionesSincronizacion = 
 
   try {
     // Nivel 1
-    const tocaListado =
-      forzarListado ||
-      !fuente.ultimoListadoEn ||
-      Date.now() - fuente.ultimoListadoEn.getTime() >= fuente.horasEntreListados * HORA_MS;
-
-    if (tocaListado) {
+    const turno = tocaListado(fuente);
+    if (forzarListado || turno.toca) {
       console.log(`[puntoticket] Descargando listado ${fuente.urlListado} ...`);
       const r = await sincronizarListado(fuente.urlListado);
       console.log(`[puntoticket] Listado: ${r.enListado} eventos, ${r.nuevos} nuevos, ${r.desactivados} desactivados.`);
@@ -231,7 +215,7 @@ export async function sincronizarPuntoticket(opciones: OpcionesSincronizacion = 
         },
       });
     } else {
-      console.log(`[puntoticket] Listado al día (último: ${fuente.ultimoListadoEn?.toLocaleString("es-CL")}).`);
+      console.log(`[puntoticket] Listado: no toca, ${turno.motivo}.`);
     }
 
     // Los eventos que ya pasaron dejan de estar activos aunque sigan en el listado.

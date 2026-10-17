@@ -4,8 +4,10 @@
 //   npm run eventos
 //   npm run eventos -- --max 10000              → entradas de hasta $10.000 (precio base)
 //   npm run eventos -- --max 10000 --total      → idem, pero comparando con precio + cargo
+//   npm run eventos -- --min 10000 --max 30000  → alguna entrada entre $10.000 y $30.000
 //   npm run eventos -- --finde --genero rock    → próximo fin de semana, solo rock
 //   npm run eventos -- --texto cerati --agotados
+//   npm run eventos -- --tipo otros                  → teatro, exposiciones, cine... (musica | otros | todos)
 
 import { prisma } from "../src/lib/db";
 import { buscarEventos, proximoFinDeSemana } from "../src/lib/eventos";
@@ -19,25 +21,28 @@ const pesos = (n: number | null) => (n == null ? "?" : `$${n.toLocaleString("es-
 
 async function main() {
   const max = valor("--max");
+  const min = valor("--min");
   const resultado = await buscarEventos({
     ...(args.includes("--finde") ? proximoFinDeSemana() : {}),
+    precioMin: min ? Number(min) : undefined,
     precioMax: max ? Number(max) : undefined,
     tipoPrecio: args.includes("--total") ? "total" : "base",
     genero: valor("--genero"),
     texto: valor("--texto"),
     incluirAgotados: args.includes("--agotados"),
+    tipo: (valor("--tipo") as "musica" | "otros" | "todos" | undefined) ?? "musica",
     limite: 100,
   });
 
   const f = resultado.filtros;
   console.log(`\n${resultado.total} evento(s) — desde ${f.desde}${f.hasta ? ` hasta ${f.hasta}` : ""}` +
-    `${f.precioMax ? `, entradas de hasta ${pesos(f.precioMax)} (precio ${f.tipoPrecio})` : ""}:\n`);
+    `${f.precioMin != null || f.precioMax != null ? `, alguna entrada ${f.precioMin != null ? `desde ${pesos(f.precioMin)} ` : ""}${f.precioMax != null ? `hasta ${pesos(f.precioMax)} ` : ""}(precio ${f.tipoPrecio})` : ""}:\n`);
 
   for (const e of resultado.eventos) {
-    console.log(`• ${e.fecha ?? "sin fecha"}${e.fechaFin ? ` → ${e.fechaFin}` : ""} ${e.hora ?? ""}  ${e.nombre}  [${e.genero ?? "?"}]${e.agotado ? "  (AGOTADO)" : ""}`);
+    console.log(`• ${e.fecha ?? "sin fecha"}${e.fechaFin ? ` → ${e.fechaFin}` : ""} ${e.hora ?? ""}  ${e.nombre}  [${e.categoria}${e.genero ? ` / ${e.genero}` : ""}]${e.agotado ? "  (AGOTADO)" : ""}`);
     console.log(`    ${e.recinto?.nombre ?? "recinto ?"}${e.recinto?.comuna ? `, ${e.recinto.comuna}` : ""}` +
       `  |  base desde ${pesos(e.precios.baseDesde)}, total desde ${pesos(e.precios.totalDesde)}`);
-    if (f.precioMax) {
+    if (f.precioMin != null || f.precioMax != null) {
       for (const s of e.sectores) console.log(`      - ${s.nombre}: ${pesos(s.precio)} + ${pesos(s.cargo)} = ${pesos(s.total)}`);
       if (e.preciosEnImagen) console.log(`      (sectores publicados como imagen: ${e.preciosEnImagen})`);
     }

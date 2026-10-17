@@ -5,14 +5,17 @@
 //   fin_de_semana=1        próximo fin de semana (viernes a domingo); si hoy ya es
 //                          fin de semana, el actual. Ignora desde/hasta.
 //   desde, hasta           rango de fechas YYYY-MM-DD (desde = hoy por defecto)
-//   precio_max             presupuesto en CLP por entrada
+//   precio_min, precio_max rango en CLP por entrada: el evento aparece si ALGUNA de
+//                          sus entradas está en el rango (se puede usar solo uno)
 //   tipo_precio            base (por defecto) | total (precio + cargo por servicio)
 //   genero                 texto, ej. rock — sin importar mayúsculas ni tildes
-//   q                      busca en nombre del evento y artista
+//   q                      busca en nombre del evento, artista y descripción
+//   tipo                   musica (por defecto) | otros (teatro, exposiciones, cine...) | todos
 //   incluir_agotados=1     por defecto se excluyen los agotados
 //   limite                 1 a 100 (20 por defecto)
 //
 // Ejemplo: /api/v1/eventos?fin_de_semana=1&precio_max=10000&genero=rock
+//          /api/v1/eventos?precio_min=10000&precio_max=30000
 
 import { timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
@@ -52,11 +55,15 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const precioMax = p.get("precio_max");
-  if (precioMax != null) {
-    const n = Number(precioMax);
-    if (!Number.isFinite(n) || n < 0) return error(400, '"precio_max" debe ser un número en pesos, ej. 10000.');
-    filtros.precioMax = n;
+  for (const [param, campo] of [["precio_min", "precioMin"], ["precio_max", "precioMax"]] as const) {
+    const v = p.get(param);
+    if (v == null) continue;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) return error(400, `"${param}" debe ser un número en pesos, ej. 10000.`);
+    filtros[campo] = n;
+  }
+  if (filtros.precioMin != null && filtros.precioMax != null && filtros.precioMin > filtros.precioMax) {
+    return error(400, '"precio_min" no puede ser mayor que "precio_max".');
   }
 
   const tipoPrecio = p.get("tipo_precio");
@@ -70,6 +77,12 @@ export async function GET(request: NextRequest) {
     const n = Number(limite);
     if (!Number.isInteger(n) || n < 1 || n > LIMITE_MAXIMO) return error(400, `"limite" debe ser un entero entre 1 y ${LIMITE_MAXIMO}.`);
     filtros.limite = n;
+  }
+
+  const tipo = p.get("tipo");
+  if (tipo != null) {
+    if (tipo !== "musica" && tipo !== "otros" && tipo !== "todos") return error(400, '"tipo" debe ser "musica", "otros" o "todos".');
+    filtros.tipo = tipo;
   }
 
   filtros.genero = p.get("genero") ?? undefined;

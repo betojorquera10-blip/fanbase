@@ -20,7 +20,8 @@ export function leerEstadisticas() {
   return { ...estadisticas };
 }
 
-export async function descargarHtml(url: string): Promise<string> {
+// `timeoutMs`: algunos sitios (ej. la agenda de Las Condes) a veces tardan más de un minuto.
+export async function descargarHtml(url: string, { timeoutMs = TIMEOUT_MS } = {}): Promise<string> {
   estadisticas.solicitudes++;
   const res = await fetch(url, {
     headers: {
@@ -28,7 +29,7 @@ export async function descargarHtml(url: string): Promise<string> {
       Accept: "text/html,application/xhtml+xml",
       "Accept-Language": "es-CL,es;q=0.9",
     },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`GET ${url} → HTTP ${res.status}`);
   const html = await res.text();

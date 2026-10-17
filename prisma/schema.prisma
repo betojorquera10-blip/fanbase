@@ -1,16 +1,27 @@
-// Modelo de datos de FanBase.
+// Modelo de datos de FanBase (PostgreSQL en Supabase).
+//
+// Dos grupos de tablas:
+//   - AUTOMÁTICAS, las llena el scraper (no editarlas a mano): fuentes,
+//     reglas_frecuencia, recintos, eventos, sectores, paginas_fuente,
+//     ejecuciones_scraper.
+//   - MANUALES, las llena el equipo desde el Table Editor de Supabase:
+//     bares, bares_programacion.
 //
 // Pensado para:
-//   - Varias fuentes de entradas (hoy solo Puntoticket).
-//   - Frecuencia de actualización ajustable SIN tocar código (tablas Fuente y
-//     ReglaFrecuencia).
+//   - Varias fuentes (Puntoticket, Agenda Cultural de Las Condes...).
+//   - Frecuencia de actualización ajustable SIN tocar código (tablas fuentes y
+//     reglas_frecuencia).
 //   - Consultas tipo "eventos del fin de semana con entradas <= $10.000", que
 //     necesitan TODOS los precios por sector, no solo el más barato.
+//
+// En la base las tablas y columnas se llaman en minúscula con guion bajo
+// (fecha_inicio), que es lo que se ve en Supabase; en el código, con
+// mayúsculas (fechaInicio). Los @map / @@map hacen la traducción.
 //
 // Fechas: guardamos las fechas del evento como texto "YYYY-MM-DD" y la hora
 // como "HH:MM", en hora local de Chile. Así "este sábado" nunca se corre de
 // día por conversiones de zona horaria, y el texto ISO se compara y ordena
-// correctamente. Las marcas de auditoría (creadoEn, etc.) sí son DateTime.
+// correctamente. Las marcas de auditoría (creado_en, etc.) sí son fechas con hora.
 
 generator client {
   provider = "prisma-client"
@@ -18,22 +29,30 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
-// Un sitio de venta de entradas.
+// ── Tablas automáticas (scraper) ──────────────────────────────────────────
+
+// Un sitio del que se leen eventos.
 model Fuente {
-  id                 String    @id // "puntoticket"
+  id                 String    @id // "puntoticket", "lascondes"
   nombre             String
-  urlListado         String
+  urlListado         String    @map("url_listado")
   activa             Boolean   @default(true)
   // Cada cuántas horas se vuelve a descargar el listado (detecta eventos
   // nuevos y los que desaparecen). Es una sola descarga: barato.
-  horasEntreListados Int       @default(3)
-  ultimoListadoEn    DateTime?
+  horasEntreListados Int       @default(3) @map("horas_entre_listados")
+  // Días del mes en que se lee la fuente, ej. "1,2,3" para una agenda que se
+  // publica a comienzos de mes. null = cualquier día.
+  diasDelMes         String?   @map("dias_del_mes")
+  ultimoListadoEn    DateTime? @map("ultimo_listado_en")
 
   eventos     Evento[]
   ejecuciones EjecucionScraper[]
+  paginas     PaginaFuente[]
+
+  @@map("fuentes")
 }
 
 // Cada cuánto se revisa el DETALLE (precios) de un evento, según cuántos días
@@ -43,8 +62,10 @@ model ReglaFrecuencia {
   id                   Int    @id @default(autoincrement())
   orden                Int    @unique
   descripcion          String
-  diasHastaEventoMax   Int?
-  horasEntreRevisiones Int
+  diasHastaEventoMax   Int?   @map("dias_hasta_evento_max")
+  horasEntreRevisiones Int    @map("horas_entre_revisiones")
+
+  @@map("reglas_frecuencia")
 }
 
 model Recinto {
@@ -54,90 +75,185 @@ model Recinto {
   direccion String?
   latitud   Float?
   longitud  Float?
-  creadoEn  DateTime @default(now())
+  creadoEn  DateTime @default(now()) @map("creado_en")
 
   eventos Evento[]
 
   @@unique([nombre, comuna])
+  @@map("recintos")
 }
 
 model Evento {
   id        Int    @id @default(autoincrement())
-  fuenteId  String
+  fuenteId  String @map("fuente_id")
   fuente    Fuente @relation(fields: [fuenteId], references: [id])
-  idExterno String // ID del evento en la fuente, ej. "PLS021" en Puntoticket
+  idExterno String @map("id_externo") // ID del evento en la fuente, ej. "PLS021" en Puntoticket
 
   nombre         String
   artista        String?
   url            String
-  imagenUrl      String?
-  generoOriginal String? // tal como lo escribe la fuente: "J-Rock", "Romántico"...
+  imagenUrl      String? @map("imagen_url")
+  generoOriginal String? @map("genero_original") // tal como lo escribe la fuente: "J-Rock", "Romántico"...
+  // "Música" o lo que corresponda en agendas culturales: "Teatro",
+  // "Exposición", "Cine"... El sitio separa Música de todo lo demás.
+  categoria      String  @default("Música")
+  // Cómo lo clasifica la propia fuente (tipo schema.org, categoría del sitio),
+  // para revisar o reclasificar sin volver a descargar.
+  categoriaFuente String? @map("categoria_fuente")
+  descripcion    String?
 
-  fechaInicio String? // "YYYY-MM-DD"
-  fechaFin    String? // "YYYY-MM-DD" (igual a fechaInicio si es de un día)
+  fechaInicio String? @map("fecha_inicio") // "YYYY-MM-DD"
+  fechaFin    String? @map("fecha_fin") // "YYYY-MM-DD" (igual a fecha_inicio si es de un día)
   hora        String? // "HH:MM"
 
-  recintoId Int?
+  recintoId Int?     @map("recinto_id")
   recinto   Recinto? @relation(fields: [recintoId], references: [id])
 
+  // Página de la ticketera de la que salió (Ticketplus, Ticketmaster). Una
+  // página puede tener varias funciones, cada una es un evento.
+  paginaId Int?          @map("pagina_id")
+  pagina   PaginaFuente? @relation(fields: [paginaId], references: [id])
+
   // Resumen de precios en CLP (calculado desde los sectores, para filtrar rápido).
-  precioBaseMin  Int? // precio sin cargo por servicio
-  precioTotalMin Int? // precio + cargo por servicio
-  precioTotalMax Int?
+  precioBaseMin  Int?    @map("precio_base_min") // precio sin cargo por servicio
+  precioTotalMin Int?    @map("precio_total_min") // precio + cargo por servicio
+  precioTotalMax Int?    @map("precio_total_max")
   moneda         String?
   agotado        Boolean? // null = desconocido
   // Si la fuente publica los precios como imagen (sin sectores en el HTML).
-  imagenPreciosUrl String?
+  imagenPreciosUrl String? @map("imagen_precios_url")
 
   // Ciclo de vida
   activo                 Boolean   @default(true) // false si ya no aparece en el listado
-  primeraVezVistoEn      DateTime  @default(now())
-  ultimaVezVistoEn       DateTime  @default(now())
-  detalleActualizadoEn   DateTime?
-  proximaRevisionDetalle DateTime  @default(now()) // nuevo → se revisa en la próxima corrida
-  erroresDetalle         Int       @default(0) // fallos seguidos al leer el detalle
+  primeraVezVistoEn      DateTime  @default(now()) @map("primera_vez_visto_en")
+  ultimaVezVistoEn       DateTime  @default(now()) @map("ultima_vez_visto_en")
+  detalleActualizadoEn   DateTime? @map("detalle_actualizado_en")
+  proximaRevisionDetalle DateTime  @default(now()) @map("proxima_revision_detalle") // nuevo → se revisa en la próxima corrida
+  erroresDetalle         Int       @default(0) @map("errores_detalle") // fallos seguidos al leer el detalle
 
   sectores Sector[]
 
   @@unique([fuenteId, idExterno])
   @@index([fechaInicio])
+  @@index([categoria])
   @@index([activo, proximaRevisionDetalle])
+  @@map("eventos")
 }
 
 // Un tipo de entrada dentro de un evento: "CANCHA", "PLATEA ALTA"...
 model Sector {
   id       Int    @id @default(autoincrement())
-  eventoId Int
+  eventoId Int    @map("evento_id")
   evento   Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
   nombre   String
   precio   Int? // precio base en CLP (algunas páginas solo muestran el total)
   cargo    Int? // cargo por servicio
   total    Int? // precio + cargo
+  agotado  Boolean? // null = la fuente no lo informa (Puntoticket, Ticketplus)
 
   @@unique([eventoId, nombre])
   @@index([precio])
   @@index([total])
+  @@map("sectores")
+}
+
+// Una página de evento de una ticketera que se lee una por una (Ticketplus,
+// Ticketmaster). Guarda cuándo se revisó y cuándo toca de nuevo, también para
+// las que se descartan (deportes, fechas pasadas), así no se descargan otra vez.
+model PaginaFuente {
+  id              Int       @id @default(autoincrement())
+  fuenteId        String    @map("fuente_id")
+  fuente          Fuente    @relation(fields: [fuenteId], references: [id])
+  url             String
+  // Categoría según el listado donde apareció (ej. la sección "música" de Ticketmaster).
+  categoria       String?
+  // Última modificación según la fuente (sitemap), para releer solo lo que cambió.
+  modificadaEn    DateTime? @map("modificada_en")
+  activa          Boolean   @default(true) // false si ya no aparece en el listado
+  estado          String    @default("pendiente") // pendiente | ok | omitida | pasada | error
+  nota            String? // motivo si se omitió o falló
+  revisadaEn      DateTime? @map("revisada_en")
+  proximaRevision DateTime  @default(now()) @map("proxima_revision")
+  errores         Int       @default(0) // fallos seguidos
+
+  eventos Evento[]
+
+  @@unique([fuenteId, url])
+  @@index([fuenteId, activa, proximaRevision])
+  @@map("paginas_fuente")
 }
 
 // Registro de cada corrida del scraper: para ver qué pasó y detectar fallas.
 model EjecucionScraper {
   id                  Int       @id @default(autoincrement())
-  fuenteId            String
+  fuenteId            String    @map("fuente_id")
   fuente              Fuente    @relation(fields: [fuenteId], references: [id])
-  iniciadaEn          DateTime  @default(now())
-  terminadaEn         DateTime?
+  iniciadaEn          DateTime  @default(now()) @map("iniciada_en")
+  terminadaEn         DateTime? @map("terminada_en")
   estado              String    @default("en_curso") // en_curso | ok | con_errores | fallida
-  listadoDescargado   Boolean   @default(false)
-  eventosEnListado    Int       @default(0)
-  eventosNuevos       Int       @default(0)
-  eventosDesactivados Int       @default(0)
-  detallesRevisados   Int       @default(0)
+  listadoDescargado   Boolean   @default(false) @map("listado_descargado")
+  eventosEnListado    Int       @default(0) @map("eventos_en_listado")
+  eventosNuevos       Int       @default(0) @map("eventos_nuevos")
+  eventosDesactivados Int       @default(0) @map("eventos_desactivados")
+  detallesRevisados   Int       @default(0) @map("detalles_revisados")
   errores             Int       @default(0)
   // Para estimar costos: cuánto se descargó en esta corrida.
-  solicitudesHttp     Int       @default(0)
-  bytesDescargados    Int       @default(0)
-  // Tokens de IA usados (hoy siempre 0: Puntoticket se lee sin IA). Queda
+  solicitudesHttp     Int       @default(0) @map("solicitudes_http")
+  bytesDescargados    Int       @default(0) @map("bytes_descargados")
+  // Tokens de IA usados (hoy siempre 0: las fuentes se leen sin IA). Queda
   // listo para fuentes futuras que sí necesiten un modelo.
-  tokensIA            Int       @default(0)
+  tokensIA            Int       @default(0) @map("tokens_ia")
   mensaje             String?
+
+  @@map("ejecuciones_scraper")
+}
+
+// ── Tablas manuales (Table Editor de Supabase) ────────────────────────────
+
+// En Supabase aparece como una lista desplegable al editar bares_programacion.
+enum DiaSemana {
+  lunes
+  martes
+  miercoles
+  jueves
+  viernes
+  sabado
+  domingo
+
+  @@map("dia_semana")
+}
+
+// Un bar o local con música en vivo. Se ingresa a mano.
+model Bar {
+  id              Int      @id @default(autoincrement())
+  nombre          String
+  comuna          String
+  direccion       String?
+  genero          String // estilo principal: "Rock", "Blues"...
+  nivelPrecio     String   @default("$$") @map("nivel_precio") // "$", "$$" o "$$$"
+  entradaLiberada Boolean  @default(false) @map("entrada_liberada")
+  descripcion     String?
+  instagram       String? // usuario o link, ej. "@labatuta"
+  sitioWeb        String?  @map("sitio_web")
+  activo          Boolean  @default(true) // false = no se muestra en el sitio
+  // true = dato inventado de la maqueta. El sitio lo marca como "ejemplo".
+  esEjemplo       Boolean  @default(false) @map("es_ejemplo")
+  creadoEn        DateTime @default(now()) @map("creado_en")
+
+  programacion ShowBar[]
+
+  @@map("bares")
+}
+
+// Programación semanal de un bar: qué hay cada día.
+model ShowBar {
+  id     Int       @id @default(autoincrement())
+  barId  Int       @map("bar_id")
+  bar    Bar       @relation(fields: [barId], references: [id], onDelete: Cascade)
+  dia    DiaSemana
+  evento String // "Jam Session", "Tributo 90s"...
+  hora   String // "22:00"
+
+  @@index([barId])
+  @@map("bares_programacion")
 }
