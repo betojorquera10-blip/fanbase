@@ -1,0 +1,13 @@
+# Netlify: sitio de STAGING (se publica desde la rama "staging").
+# Netlify detecta Next.js y usa su propia integración para construirlo.
+# Variables de entorno (en Netlify: Site configuration > Environment variables):
+#   DATABASE_URL     base de staging (Supabase fanbase-staging, Session pooler)
+#   FANBASE_API_KEY  clave de la API para staging (distinta de la de producción)
+#   DB_POOL_MAX      conexiones a la base por instancia (ej. 2)
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"

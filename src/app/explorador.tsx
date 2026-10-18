@@ -249,7 +249,7 @@ export function Explorador({ eventos, bares }: { eventos: EventoEncontrado[]; ba
           </div>
           <div className="hero-stat">
             <div className="big">{eventos.length}</div>
-            <div className="muted">próximos eventos, de Puntoticket y la Agenda Cultural de Las Condes</div>
+            <div className="muted">próximos eventos de Puntoticket, Ticketmaster, Ticketplus y agendas culturales municipales</div>
           </div>
         </section>
 

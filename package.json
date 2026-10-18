@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
+    "postinstall": "prisma generate",
     "start": "next start -p 3001",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -13,7 +14,8 @@
     "db:studio": "prisma studio",
     "scrape": "tsx scripts/scrape.ts",
     "eventos": "tsx scripts/ver-eventos.ts",
-    "consumo": "tsx scripts/consumo.ts"
+    "consumo": "tsx scripts/consumo.ts",
+    "copiar-a-staging": "tsx scripts/copiar-a-staging.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

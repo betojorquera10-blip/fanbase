@@ -10,7 +10,10 @@ import { PrismaClient } from "@/generated/prisma/client";
 function crearCliente() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Falta DATABASE_URL en el archivo .env");
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
+  // En la nube cada instancia del sitio abre sus propias conexiones y el plan
+  // gratis de Supabase tiene un máximo: DB_POOL_MAX lo limita (10 por defecto).
+  const max = Number(process.env.DB_POOL_MAX) || 10;
+  return new PrismaClient({ adapter: new PrismaPg({ connectionString: url, max }) });
 }
 
 // En desarrollo, Next.js recarga los módulos con cada cambio; guardar el
