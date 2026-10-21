@@ -11,3 +11,10 @@
 
 [build.environment]
   NODE_VERSION = "22"
+
+# Staging no debe aparecer en buscadores (este archivo solo lo usa Netlify;
+# producción en el VPS no lo lleva).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
