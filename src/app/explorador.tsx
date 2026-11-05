@@ -243,7 +243,7 @@ export function Explorador({ eventos, bares }: { eventos: EventoEncontrado[]; ba
       <main className="app">
         <section className="hero">
           <div>
-            <div className="eyebrow">Fanbase 0.1</div>
+            <div className="eyebrow">Fanbase 0.2</div>
             <h1>Encuentra dónde escuchar música en vivo.</h1>
             <p>Busca conciertos, bares y shows por artista, género, comuna o fecha. Sin perfil, sin match y sin vueltas.</p>
           </div>
