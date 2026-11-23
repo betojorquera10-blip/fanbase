@@ -1,5 +1,6 @@
-// Bares con música en vivo. Se ingresan a mano en Supabase (tablas bares y
-// bares_programacion); acá se leen para el sitio.
+// Locales (bares, restaurantes, cafés y lugares de comida). Se ingresan a mano
+// desde el panel de administración (tablas bares y bares_programacion); acá se
+// leen para el sitio.
 
 import { prisma } from "@/lib/db";
 import { DIAS_SEMANA } from "@/lib/dias";
@@ -13,6 +14,11 @@ export async function listarBares() {
   return bares.map((b) => ({
     id: b.id,
     nombre: b.nombre,
+    tipo: b.tipo,
+    musicaEnVivo: b.musicaEnVivo,
+    imagen: b.imagenUrl,
+    horario: b.horario,
+    telefono: b.telefono,
     comuna: b.comuna,
     direccion: b.direccion,
     genero: b.genero,

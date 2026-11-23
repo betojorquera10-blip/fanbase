@@ -1,7 +1,7 @@
 "use client";
 
 // Portada de FanBase: buscador, filtros y tarjetas de conciertos, arte y
-// cultura, y bares. Diseño basado en la maqueta diseno/fanbase_0_1.html.
+// cultura, y locales (bares, restaurantes y comida). Diseño basado en la maqueta diseno/fanbase_0_1.html.
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
@@ -11,6 +11,7 @@ import { DIAS_SEMANA, diaSemanaDe, nombreDia, type DiaSemana } from "@/lib/dias"
 import { CATEGORIA_MUSICA, type TipoEvento } from "@/lib/categorias";
 import { formatearFecha, hoyEnChile, normalizar, proximoFinDeSemana, sumarDias } from "@/lib/fechas";
 import { imagenOptimizable } from "@/lib/imagenes";
+import { nombreTipoLocal } from "@/lib/admin/opciones";
 import { calzaPrecio, hayRango, sectorEnRango, type RangoPrecio } from "@/lib/precios";
 import { ORDEN_REGIONES, ubicarComuna } from "@/lib/regiones";
 
@@ -21,7 +22,7 @@ type Seleccion = { tipo: "evento"; item: EventoEncontrado; funciones: EventoEnco
 const VISTAS: { id: Vista; nombre: string }[] = [
   { id: "todo", nombre: "Inicio" },
   { id: "conciertos", nombre: "Conciertos" },
-  { id: "bares", nombre: "Bares" },
+  { id: "bares", nombre: "Locales" },
 ];
 
 const TIPOS: { id: TipoEvento; nombre: string }[] = [
@@ -61,7 +62,8 @@ const leerMonto = (texto: string) => {
 function textoPrecio(e: EventoEncontrado) {
   const precio = precioDesde(e);
   if (precio === 0) return "Entrada liberada";
-  return precio != null ? `Desde ${pesos(precio)}` : `Precio en ${e.fuente.nombre}`;
+  if (precio != null) return `Desde ${pesos(precio)}`;
+  return e.compra ? "Precio por confirmar" : `Precio en ${e.fuente.nombre}`;
 }
 
 // "sáb 17 oct · 21:00", o "9 oct al 29 nov" para exposiciones y temporadas.
@@ -73,14 +75,11 @@ function textoFecha(e: EventoEncontrado) {
 
 const esMusica = (e: EventoEncontrado) => e.categoria === CATEGORIA_MUSICA;
 
-// Las funciones de un mismo evento (misma página y nombre) van en una sola
-// tarjeta; los eventos ya vienen ordenados por fecha, así que la primera es la próxima.
+// Las funciones de un mismo evento (ver `grupo` en src/lib/eventos.ts) van en
+// una sola tarjeta; los eventos ya vienen ordenados por fecha, así que la primera es la próxima.
 function agruparFunciones(eventos: EventoEncontrado[]): EventoEncontrado[][] {
   const grupos = new Map<string, EventoEncontrado[]>();
-  for (const e of eventos) {
-    const clave = `${e.fuente.id}|${e.url}|${e.nombre}`;
-    grupos.set(clave, [...(grupos.get(clave) ?? []), e]);
-  }
+  for (const e of eventos) grupos.set(e.grupo, [...(grupos.get(e.grupo) ?? []), e]);
   return [...grupos.values()];
 }
 
@@ -113,9 +112,11 @@ export function Explorador({ eventos, bares }: { eventos: EventoEncontrado[]; ba
   const [seleccion, setSeleccion] = useState<Seleccion>(null);
 
   const generosMusica = useMemo(
-    () => ordenAlfabetico([...eventos.filter(esMusica).map((e) => e.genero), ...bares.map((b) => b.genero)]),
+    () => ordenAlfabetico([...eventos.filter(esMusica).map((e) => e.genero), ...bares.filter((b) => b.musicaEnVivo).map((b) => b.genero)]),
     [eventos, bares],
   );
+  // Tipos de cocina de los locales sin música (van con "No música").
+  const cocinas = useMemo(() => ordenAlfabetico(bares.filter((b) => !b.musicaEnVivo).map((b) => b.genero)), [bares]);
   const categoriasCultura = useMemo(
     () => ordenAlfabetico(eventos.filter((e) => !esMusica(e)).map((e) => e.categoria)),
     [eventos],
@@ -157,7 +158,10 @@ export function Explorador({ eventos, bares }: { eventos: EventoEncontrado[]; ba
   const cultura = agruparFunciones(eventosFiltrados.filter((e) => !esMusica(e)));
 
   const baresFiltrados = bares.filter((b) => {
-    const contenido = [b.nombre, b.comuna, b.genero, b.descripcion, ...b.programacion.map((s) => s.evento)].filter(Boolean).join(" ");
+    // Con música en vivo van con "Música"; restaurantes y cafés sin música, con "No música".
+    if (tipo === "musica" && !b.musicaEnVivo) return false;
+    if (tipo === "otros" && b.musicaEnVivo) return false;
+    const contenido = [b.nombre, nombreTipoLocal(b.tipo), b.comuna, b.genero, b.descripcion, ...b.programacion.map((s) => s.evento)].filter(Boolean).join(" ");
     if (busqueda && !normalizar(contenido).includes(busqueda)) return false;
     if (genero && b.genero !== genero) return false;
     const lugar = ubicarComuna(b.comuna);
@@ -168,6 +172,8 @@ export function Explorador({ eventos, bares }: { eventos: EventoEncontrado[]; ba
     if (hayRango(rangoPrecio) && !(b.entradaLiberada && !rangoPrecio.min)) return false;
 
     // La programación de los bares es semanal: se compara por día de la semana.
+    // Los locales sin música no tienen programación: el filtro de fecha no los saca.
+    if (!b.musicaEnVivo) return true;
     const { id, hoy } = filtroFecha;
     if (id === "hoy") return b.programacion.some((s) => s.dia === diaSemanaDe(hoy));
     if (id === "finde") return b.programacion.some((s) => ["viernes", "sabado", "domingo"].includes(s.dia));
@@ -206,16 +212,17 @@ export function Explorador({ eventos, bares }: { eventos: EventoEncontrado[]; ba
 
   function cambiarVista(nueva: Vista) {
     setVista(nueva);
-    // Conciertos y Bares son música: si estaba en "No música", se pasa a "Todo".
-    if (nueva !== "todo" && tipo === "otros") setTipo("todos");
+    // Conciertos es música: si estaba en "No música", se pasa a "Todo".
+    if (nueva === "conciertos" && tipo === "otros") setTipo("todos");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function cambiarTipo(nuevo: TipoEvento) {
     setTipo(nuevo);
-    if (nuevo === "otros") setVista("todo");
+    if (nuevo === "otros" && vista === "conciertos") setVista("todo");
     // El género elegido puede no existir en el nuevo tipo.
-    const sigueValido = !genero || (nuevo !== "otros" && generosMusica.includes(genero)) || (nuevo !== "musica" && categoriasCultura.includes(genero));
+    const sigueValido =
+      !genero || (nuevo !== "otros" && generosMusica.includes(genero)) || (nuevo !== "musica" && [...categoriasCultura, ...cocinas].includes(genero));
     if (!sigueValido) setGenero("");
   }
 
@@ -299,6 +306,11 @@ export function Explorador({ eventos, bares }: { eventos: EventoEncontrado[]; ba
                   {categoriasCultura.map((c) => <option key={c} value={c}>{c}</option>)}
                 </optgroup>
               )}
+              {tipo !== "musica" && cocinas.length > 0 && (
+                <optgroup label="Comida">
+                  {cocinas.map((c) => <option key={c} value={c}>{c}</option>)}
+                </optgroup>
+              )}
             </select>
             <select
               className="filter-select"
@@ -357,12 +369,15 @@ export function Explorador({ eventos, bares }: { eventos: EventoEncontrado[]; ba
           />
         )}
 
-        {verMusica && vista !== "conciertos" && (
+        {vista !== "conciertos" && (
           <section>
             <div className="section-head">
               <div>
-                <h2>Bares y música en vivo</h2>
-                <p>Locales con programación musical.{hayEjemplos && <> <span className="demo-tag">Datos de ejemplo</span></>}</p>
+                <h2>{tipo === "musica" ? "Bares y música en vivo" : tipo === "otros" ? "Restaurantes y comida" : "Bares, restaurantes y comida"}</h2>
+                <p>
+                  {tipo === "musica" ? "Locales con programación musical." : tipo === "otros" ? "Restaurantes, cafés y lugares para comer." : "Locales con música en vivo y lugares para comer."}
+                  {hayEjemplos && <> <span className="demo-tag">Datos de ejemplo</span></>}
+                </p>
               </div>
               <div className="count">{resultados(baresFiltrados.length)}</div>
             </div>
@@ -372,7 +387,7 @@ export function Explorador({ eventos, bares }: { eventos: EventoEncontrado[]; ba
                   <TarjetaBar key={b.id} bar={b} onAbrir={() => setSeleccion({ tipo: "bar", item: b })} />
                 ))
               ) : (
-                <div className="empty">No hay bares que coincidan con esos filtros.</div>
+                <div className="empty">No hay locales que coincidan con esos filtros.</div>
               )}
             </div>
           </section>
@@ -389,7 +404,7 @@ export function Explorador({ eventos, bares }: { eventos: EventoEncontrado[]; ba
 
       {seleccion && (
         <Modal
-          titulo={seleccion.tipo === "bar" ? "Bar" : esMusica(seleccion.item) ? "Concierto" : seleccion.item.categoria}
+          titulo={seleccion.tipo === "bar" ? nombreTipoLocal(seleccion.item.tipo) : esMusica(seleccion.item) ? "Concierto" : seleccion.item.categoria}
           onCerrar={() => setSeleccion(null)}
         >
           {seleccion.tipo === "evento" ? <DetalleEvento funciones={seleccion.funciones} rango={rangoPrecio} /> : <DetalleBar bar={seleccion.item} />}
@@ -500,12 +515,14 @@ function TarjetaBar({ bar: b, onAbrir }: { bar: Bar; onAbrir: () => void }) {
   const show = proximoShow(b, useHoy());
   return (
     <article className="card">
-      <Portada etiqueta={b.genero} variante="bar" />
+      <Portada imagen={b.imagen} etiqueta={b.musicaEnVivo ? b.genero : nombreTipoLocal(b.tipo)} variante="bar" />
       <div className="card-body">
         <h3>{b.nombre}</h3>
         <div className="meta">
-          <span>{b.comuna} · {b.nivelPrecio}</span>
-          {show ? (
+          <span>{nombreTipoLocal(b.tipo)} · {b.comuna} · {b.nivelPrecio}</span>
+          {!b.musicaEnVivo ? (
+            <span>{b.horario ?? b.direccion ?? ""}</span>
+          ) : show ? (
             <span>{show.esHoy ? "Hoy" : nombreDia(show.dia)}: {show.evento} · {show.hora}</span>
           ) : (
             <span>{b.programacion.map((s) => nombreDia(s.dia)).filter((d, i, a) => a.indexOf(d) === i).join(" · ") || "Sin programación cargada"}</span>
@@ -513,11 +530,11 @@ function TarjetaBar({ bar: b, onAbrir }: { bar: Bar; onAbrir: () => void }) {
         </div>
         <div className="pill-row">
           <span className="pill">{b.genero}</span>
-          <span className="pill">{b.entradaLiberada ? "Entrada liberada" : "Música en vivo"}</span>
+          {b.musicaEnVivo && <span className="pill">{b.entradaLiberada ? "Entrada liberada" : "Música en vivo"}</span>}
           {b.esEjemplo && <span className="pill pill-demo">Ejemplo</span>}
         </div>
         <div className="card-actions">
-          <button className="primary" onClick={onAbrir}>Ver bar</button>
+          <button className="primary" onClick={onAbrir}>Ver local</button>
         </div>
       </div>
     </article>
@@ -552,8 +569,18 @@ function enlaceMapa(recinto: NonNullable<EventoEncontrado["recinto"]>) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(consulta)}`;
 }
 
+// Link para un teléfono (WhatsApp) o correo; null si es otra cosa.
+function enlaceContacto(contacto: string): string | null {
+  if (contacto.includes("@") && !contacto.startsWith("@")) return `mailto:${contacto.trim()}`;
+  const digitos = contacto.replace(/\D/g, "");
+  if (digitos.length === 9 && digitos.startsWith("9")) return `https://wa.me/56${digitos}`; // celular chileno sin +56
+  if (digitos.length >= 10) return `https://wa.me/${digitos}`;
+  return null;
+}
+
 // Texto del botón principal según adónde lleva el link.
 function textoBoton(e: EventoEncontrado) {
+  if (e.compra?.forma === "inscripcion") return "Inscribirse ↗";
   if (e.url.includes("#")) return "Ver en la agenda ↗"; // sin link de entradas: lleva a la agenda
   return precioDesde(e) === 0 ? "Reservar entrada ↗" : "Comprar entradas ↗";
 }
@@ -589,7 +616,7 @@ function DetalleEvento({ funciones, rango }: { funciones: EventoEncontrado[]; ra
       <div className="pill-row">
         <span className="pill">{esMusica(e) ? (e.genero ?? CATEGORIA_MUSICA) : e.categoria}</span>
         {e.agotado && <span className="pill pill-danger">Agotado</span>}
-        <span className="pill">Fuente: {e.fuente.nombre}</span>
+        <span className="pill">{e.compra ? "Publicado por FanBase" : `Fuente: ${e.fuente.nombre}`}</span>
       </div>
 
       {parrafos.length > 0 && (
@@ -637,13 +664,14 @@ function DetalleEvento({ funciones, rango }: { funciones: EventoEncontrado[]; ra
           ))}
         </p>
       )}
+      {e.compra && <ComoComprar compra={e.compra} />}
       <div className="detail-actions">
-        <a className="primary" href={e.url} target="_blank" rel="noopener noreferrer">{textoBoton(e)}</a>
+        {e.url && <a className="primary" href={e.url} target="_blank" rel="noopener noreferrer">{textoBoton(e)}</a>}
         {e.recinto && (
           <a className="ghost" href={enlaceMapa(e.recinto)} target="_blank" rel="noopener noreferrer">Cómo llegar</a>
         )}
       </div>
-      {e.actualizado && (
+      {e.actualizado && !e.compra && (
         <div className="notice">
           Información revisada el{" "}
           {new Date(e.actualizado).toLocaleString("es-CL", { timeZone: "America/Santiago", dateStyle: "long", timeStyle: "short" })}{" "}
@@ -652,6 +680,24 @@ function DetalleEvento({ funciones, rango }: { funciones: EventoEncontrado[]; ra
       )}
     </>
   );
+}
+
+// Un teléfono o correo, con link si se puede.
+function Contacto({ texto }: { texto: string }) {
+  const link = enlaceContacto(texto);
+  return link ? <a href={link} target="_blank" rel="noopener noreferrer">{texto}</a> : <>{texto}</>;
+}
+
+// Eventos cargados a mano: entradas por contacto, en la puerta o con inscripción.
+function ComoComprar({ compra }: { compra: NonNullable<EventoEncontrado["compra"]> }) {
+  const link = compra.contacto ? enlaceContacto(compra.contacto) : null;
+  const contacto = compra.contacto && (
+    link ? <a href={link} target="_blank" rel="noopener noreferrer">{compra.contacto}</a> : <strong>{compra.contacto}</strong>
+  );
+  if (compra.forma === "puerta") return <div className="notice contacto-compra">Entradas a la venta en la puerta del evento.</div>;
+  if (compra.forma === "contacto") return <div className="notice contacto-compra">Entradas por contacto directo: {contacto}</div>;
+  if (compra.forma === "inscripcion" && contacto) return <div className="notice contacto-compra">Gratis con inscripción previa: {contacto}</div>;
+  return null;
 }
 
 // "@labatuta" o "labatuta" → https://www.instagram.com/labatuta; un link completo se respeta.
@@ -668,11 +714,20 @@ function DetalleBar({ bar: b }: { bar: Bar }) {
       {b.descripcion && <p className="muted">{b.descripcion}</p>}
       <div className="detail-grid">
         <div className="detail-box"><small>Comuna</small><strong>{b.comuna}</strong></div>
-        <div className="detail-box"><small>Estilo</small><strong>{b.genero}</strong></div>
+        <div className="detail-box"><small>{b.musicaEnVivo ? "Estilo" : "Cocina"}</small><strong>{b.genero}</strong></div>
         <div className="detail-box"><small>Precio</small><strong>{b.nivelPrecio}</strong></div>
-        <div className="detail-box"><small>Entrada</small><strong>{b.entradaLiberada ? "Liberada" : "Consultar en el local"}</strong></div>
+        {b.musicaEnVivo ? (
+          <div className="detail-box"><small>Entrada</small><strong>{b.entradaLiberada ? "Liberada" : "Consultar en el local"}</strong></div>
+        ) : (
+          <div className="detail-box"><small>Tipo</small><strong>{nombreTipoLocal(b.tipo)}</strong></div>
+        )}
       </div>
-      {b.direccion && <p className="muted">{b.direccion}</p>}
+      <div className="local-datos">
+        {b.direccion && <span className="muted">📍 {b.direccion}</span>}
+        {b.horario && <span className="muted">🕑 {b.horario}</span>}
+        {b.telefono && <span className="muted">📞 <Contacto texto={b.telefono} /></span>}
+      </div>
+      {b.musicaEnVivo && (
       <div className="schedule">
         <h3>Programación semanal</h3>
         {b.programacion.length === 0 && <p className="muted">Este bar todavía no tiene programación cargada.</p>}
@@ -686,6 +741,7 @@ function DetalleBar({ bar: b }: { bar: Bar }) {
           </div>
         ))}
       </div>
+      )}
       <div className="detail-actions">
         <a className="primary" href={mapa} target="_blank" rel="noopener noreferrer">Cómo llegar</a>
         {b.instagram && <a className="ghost" href={enlaceInstagram(b.instagram)} target="_blank" rel="noopener noreferrer">Instagram ↗</a>}
@@ -693,7 +749,7 @@ function DetalleBar({ bar: b }: { bar: Bar }) {
       </div>
       {b.esEjemplo && (
         <div className="notice">
-          Dato de ejemplo: este bar y su programación son ficticios mientras cargamos bares reales.
+          Dato de ejemplo: este local y su programación son ficticios mientras cargamos locales reales.
         </div>
       )}
     </>

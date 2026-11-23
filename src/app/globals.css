@@ -257,3 +257,123 @@ h1 { font-size: clamp(34px, 7vw, 72px); line-height: .98; margin: 10px 0 14px; m
   .section-head { align-items: start }
   .detail-grid { grid-template-columns: 1fr }
 }
+
+/* ── Panel de administración (/admin/<link secreto>) ── */
+.nav-link {
+  border-radius: 999px; padding: 10px 14px; text-decoration: none; font-size: 14px;
+  background: #1a1a20; color: var(--text); border: 1px solid var(--line)
+}
+.nav-link.active { background: var(--accent); color: #fff; border-color: transparent }
+.adm-nav { flex-wrap: wrap; justify-content: flex-end }
+.adm section { margin-top: 28px }
+.adm-cargando { padding-top: 40px; color: var(--muted) }
+.adm-titulo h1 { margin: 0 0 6px; font-size: 32px }
+.adm-titulo p { margin: 0 }
+.adm-titulo-con-boton { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap }
+.adm-titulo-con-boton > div { max-width: 700px }
+.adm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px }
+.adm-kpi, .adm-caja {
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px;
+  display: flex; flex-direction: column; gap: 6px
+}
+.adm-kpi small { color: var(--muted) }
+.adm-kpi strong { font-size: 28px }
+.adm-kpi a, .adm-kpi .muted { font-size: 13px }
+.adm-columnas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-items: start }
+.adm-caja h3 { margin: 0 0 6px; font-size: 16px }
+.adm-barra { display: grid; grid-template-columns: minmax(0, 1.4fr) 1fr auto; gap: 10px; align-items: center; font-size: 14px }
+.adm-barra > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.adm-barra-fondo { height: 6px; border-radius: 99px; background: var(--card2); overflow: hidden }
+.adm-barra-fondo span { display: block; height: 100%; background: var(--accent) }
+.adm-dato { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; border-bottom: 1px solid var(--line) }
+.adm-dato:last-child { border-bottom: none }
+.adm-tabla-envoltorio { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px }
+.adm-tabla { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 860px }
+.adm-tabla th, .adm-tabla td { text-align: left; padding: 12px; border-bottom: 1px solid var(--line); vertical-align: top }
+.adm-tabla th { color: var(--muted); font-weight: 600; background: var(--card) }
+.adm-tabla tr:last-child td { border-bottom: none }
+.adm-num { font-size: 18px; font-weight: 700 }
+.adm-url { font-size: 12px; word-break: break-all }
+.adm-inactiva { opacity: .55 }
+.adm-nota { font-size: 13px; line-height: 1.6; margin-top: 10px }
+.adm-fuente-form { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center }
+.adm-fuente-form input:not([type=checkbox]) {
+  width: 64px; background: var(--card2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px
+}
+.adm-fuente-form input[name=dias] { width: 80px }
+.adm-fuente-form .ghost { padding: 6px 12px; font-size: 13px }
+.adm-check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer }
+.adm-check input { width: 18px; height: 18px; accent-color: var(--accent) }
+.adm-ok-texto { color: var(--success); font-size: 13px }
+.adm-error-texto { color: var(--danger); font-size: 13px; margin: 0 }
+.adm-aviso {
+  margin-top: 16px; padding: 12px 16px; border-radius: 12px;
+  background: rgba(46, 212, 122, .1); border: 1px solid rgba(46, 212, 122, .4); color: var(--success)
+}
+.adm-lista { display: grid; gap: 10px; margin-top: 18px }
+.adm-item {
+  display: grid; grid-template-columns: 96px 1fr auto; gap: 14px; align-items: center;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 10px
+}
+.adm-item-foto {
+  width: 96px; height: 64px; border-radius: 10px; overflow: hidden; background: var(--card2);
+  display: grid; place-items: center; color: var(--muted); font-size: 11px; text-align: center
+}
+.adm-item-foto img { width: 100%; height: 100%; object-fit: cover }
+.adm-item-texto { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 14px }
+.adm-item-texto strong { font-size: 16px }
+.adm-pill { margin-left: 8px; font-size: 10px; padding: 2px 7px; vertical-align: middle }
+.adm-acciones { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end }
+.adm-acciones .ghost { padding: 8px 12px; font-size: 13px }
+.adm-peligro:hover { border-color: var(--danger); color: var(--danger) }
+.adm-form { display: grid; gap: 16px; margin-top: 18px; max-width: 820px }
+.adm-form fieldset {
+  border: 1px solid var(--line); border-radius: 18px; background: var(--card); padding: 18px; margin: 0;
+  display: grid; gap: 12px; justify-items: start
+}
+.adm-form legend { font-weight: 800; padding: 0 8px; font-size: 17px }
+.adm-form p.muted { margin: 0; font-size: 14px }
+.adm-grilla { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100% }
+.adm-separado { margin-top: 8px }
+.adm-ancho { grid-column: 1 / -1 }
+.adm-campo { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); min-width: 0 }
+.adm-campo input, .adm-campo select, .adm-campo textarea {
+  width: 100%; background: var(--card2); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; font: inherit
+}
+.adm-campo textarea { resize: vertical }
+.adm-campo input:focus, .adm-campo select:focus, .adm-campo textarea:focus { outline: 2px solid var(--accent); border-color: transparent }
+.adm-fila { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; width: 100% }
+.adm-fila .adm-campo { flex: 0 1 180px }
+.adm-fila .adm-crece { flex: 1 1 220px }
+.adm-fila .adm-check { padding-bottom: 10px }
+.adm-quitar { padding-bottom: 10px }
+.adm-link { background: none; border: none; color: var(--accent2); padding: 0; text-decoration: underline; font-size: 14px }
+.adm-foto { display: flex; gap: 16px; align-items: center; flex-wrap: wrap }
+.adm-foto-vista {
+  width: 240px; aspect-ratio: 16 / 10; border-radius: 14px; overflow: hidden; background: var(--card2);
+  display: grid; place-items: center; color: var(--muted); border: 1px dashed var(--line)
+}
+.adm-foto-vista img { width: 100%; height: 100%; object-fit: cover }
+.adm-foto-acciones { display: flex; flex-direction: column; gap: 8px; align-items: flex-start }
+.adm-boton-archivo { cursor: pointer }
+.adm-errores {
+  padding: 14px 18px; border-radius: 14px; background: rgba(255, 92, 120, .08); border: 1px solid rgba(255, 92, 120, .4);
+  color: #ffc2cd; font-size: 14px
+}
+.adm-errores ul { margin: 6px 0 0; padding-left: 20px }
+.adm-botonera { display: flex; gap: 10px }
+@media (max-width: 900px) {
+  .adm-columnas { grid-template-columns: 1fr }
+}
+@media (max-width: 640px) {
+  .adm-grilla { grid-template-columns: 1fr }
+  .adm-item { grid-template-columns: 64px 1fr }
+  .adm-item-foto { width: 64px; height: 48px }
+  .adm-acciones { grid-column: 1 / -1; justify-content: flex-start }
+  .adm-foto-vista { width: 100% }
+}
+
+/* Locales en el sitio: datos extra */
+.local-datos { display: grid; gap: 6px; margin-top: 14px; font-size: 14px }
+.contacto-compra { margin-top: 14px }

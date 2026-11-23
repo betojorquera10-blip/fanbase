@@ -10,15 +10,26 @@
 import "dotenv/config";
 import { Client } from "pg";
 
-// En orden: primero las tablas de las que otras dependen. El registro de
-// corridas (ejecuciones_scraper) no se copia: cada base tiene el suyo.
-const TABLAS = ["fuentes", "reglas_frecuencia", "recintos", "paginas_fuente", "eventos", "sectores", "bares", "bares_programacion"];
+// En orden: primero las tablas de las que otras dependen. Las corridas del
+// scraper se copian para que el panel de administración de staging muestre
+// las de producción (en staging no se scrapea).
+const TABLAS = [
+  "fuentes", "reglas_frecuencia", "recintos", "paginas_fuente", "eventos", "sectores",
+  "bares", "bares_programacion", "eventos_manuales", "ejecuciones_scraper",
+];
+// Solo se vacían en staging: fotos subidas desde el panel para probar.
+const SOLO_VACIAR = ["imagenes"];
 
 const proyecto = (url: string) => url.match(/postgres\.([a-z0-9]+):/)?.[1] ?? url;
 
 async function columnas(db: Client, tabla: string): Promise<string[]> {
   const r = await db.query("select column_name from information_schema.columns where table_schema = 'public' and table_name = $1", [tabla]);
   return r.rows.map((x) => x.column_name as string);
+}
+
+async function existe(db: Client, tabla: string): Promise<boolean> {
+  const r = await db.query("select 1 from information_schema.tables where table_schema = 'public' and table_name = $1", [tabla]);
+  return r.rowCount! > 0;
 }
 
 async function main() {
@@ -37,9 +48,16 @@ async function main() {
   try {
     await destino.query("begin");
     // Se vacía staging entero (en una transacción: si algo falla, queda como estaba).
-    await destino.query(`truncate ${TABLAS.map((t) => `"${t}"`).join(", ")}, ejecuciones_scraper restart identity cascade`);
+    // (Una tabla nueva que todavía no existe en alguna de las dos bases se salta.)
+    const aVaciar: string[] = [];
+    for (const t of [...TABLAS, ...SOLO_VACIAR]) if (await existe(destino, t)) aVaciar.push(t);
+    await destino.query(`truncate ${aVaciar.map((t) => `"${t}"`).join(", ")} restart identity cascade`);
 
     for (const tabla of TABLAS) {
+      if (!aVaciar.includes(tabla) || !(await existe(origen, tabla))) {
+        console.log(`  ${tabla.padEnd(20)} (no existe en ambas bases, se salta)`);
+        continue;
+      }
       // Solo las columnas que existen en ambas bases (staging puede tener una
       // migración nueva que producción aún no tiene, o al revés).
       const enDestino = new Set(await columnas(destino, tabla));

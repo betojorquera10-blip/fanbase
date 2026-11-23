@@ -51,7 +51,7 @@ export async function buscarEventos(filtros: FiltrosEventos = {}) {
   let eventos = await prisma.evento.findMany({
     where: { AND: condiciones },
     orderBy: [{ fechaInicio: "asc" }, { hora: "asc" }],
-    include: { recinto: true, sectores: true, fuente: true },
+    include: { recinto: true, sectores: true, fuente: true, manual: true },
   });
 
   // Precio, género y texto se filtran acá y no en la base: el precio usa la
@@ -126,7 +126,7 @@ function mismoNombre(a: Set<string>, b: Set<string>): boolean {
 }
 
 // Preferencia cuando hay empate: las que informan más (sectores, disponibilidad).
-const PRIORIDAD_FUENTE = ["ticketmaster", "puntoticket", "ticketplus", "lascondes", "vitacura", "lareina"];
+const PRIORIDAD_FUENTE = ["ticketmaster", "puntoticket", "ticketplus", "lascondes", "vitacura", "lareina", "fanbase"];
 
 // Agrupa los eventos repetidos (mismo día, misma comuna y hora si ambas se
 // conocen, y casi el mismo nombre) y elige uno por grupo: el que tiene más
@@ -169,7 +169,7 @@ function unirDuplicados(eventos: EventoConRelaciones[]): Map<number, OtraFuente[
   return elegidos;
 }
 
-type EventoConRelaciones = Prisma.EventoGetPayload<{ include: { recinto: true; sectores: true; fuente: true } }>;
+type EventoConRelaciones = Prisma.EventoGetPayload<{ include: { recinto: true; sectores: true; fuente: true; manual: true } }>;
 
 function formatearEvento(e: EventoConRelaciones, tipoPrecio: TipoPrecio, rango: RangoPrecio = {}, tambienEn: OtraFuente[] = []) {
   const sectores = e.sectores
@@ -208,6 +208,11 @@ function formatearEvento(e: EventoConRelaciones, tipoPrecio: TipoPrecio, rango: 
     url: e.url,
     imagen: e.imagenUrl,
     fuente: { id: e.fuente.id, nombre: e.fuente.nombre },
+    // Las funciones de un mismo evento comparten grupo (una sola tarjeta en el sitio).
+    // Ticketeras: la misma página; eventos manuales: el mismo "<grupo>/" del panel.
+    grupo: e.manual ? `${e.fuenteId}|${e.idExterno.split("/")[0]}` : `${e.fuenteId}|${e.url}|${e.nombre}`,
+    // Solo eventos cargados a mano: cómo se consiguen las entradas.
+    compra: e.manual && { forma: e.manual.formaCompra, contacto: e.manual.contacto },
     // El mismo evento en otras ticketeras (ver unirDuplicados).
     tambienEn,
     actualizado: e.detalleActualizadoEn?.toISOString() ?? null,

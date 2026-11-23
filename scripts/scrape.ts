@@ -43,8 +43,15 @@ async function main() {
   if (soloFuente && !FUENTES[soloFuente]) {
     throw new Error(`Fuente desconocida "${soloFuente}". Opciones: ${Object.keys(FUENTES).join(", ")}`);
   }
+  // Las fuentes desactivadas desde el panel de administración no se leen
+  // (salvo que se pida una en particular con --fuente).
+  const inactivas = new Set((await prisma.fuente.findMany({ where: { activa: false }, select: { id: true } })).map((f) => f.id));
   for (const [id, sincronizar] of Object.entries(FUENTES)) {
     if (soloFuente && id !== soloFuente) continue;
+    if (!soloFuente && inactivas.has(id)) {
+      console.log(`[${id}] Desactivada en el panel; no se lee.`);
+      continue;
+    }
     // Una fuente que falla no detiene a las demás.
     try {
       await sincronizar();

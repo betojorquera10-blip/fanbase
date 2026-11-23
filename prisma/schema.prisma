@@ -4,8 +4,11 @@
 //   - AUTOMÁTICAS, las llena el scraper (no editarlas a mano): fuentes,
 //     reglas_frecuencia, recintos, eventos, sectores, paginas_fuente,
 //     ejecuciones_scraper.
-//   - MANUALES, las llena el equipo desde el Table Editor de Supabase:
-//     bares, bares_programacion.
+//   - MANUALES, las llena el equipo desde el panel de administración
+//     (/admin/<link secreto>): bares, bares_programacion, eventos_manuales,
+//     imagenes. Los eventos cargados a mano viven en `eventos` (fuente
+//     "fanbase") para que el sitio los trate igual que los demás; lo que
+//     solo tienen ellos (cómo comprar) va en eventos_manuales.
 //
 // Pensado para:
 //   - Varias fuentes (Puntoticket, Agenda Cultural de Las Condes...).
@@ -132,6 +135,7 @@ model Evento {
   erroresDetalle         Int       @default(0) @map("errores_detalle") // fallos seguidos al leer el detalle
 
   sectores Sector[]
+  manual   EventoManual?
 
   @@unique([fuenteId, idExterno])
   @@index([fechaInicio])
@@ -223,13 +227,21 @@ enum DiaSemana {
   @@map("dia_semana")
 }
 
-// Un bar o local con música en vivo. Se ingresa a mano.
+// Un local: bar, restaurante, café o lugar de comida. Se ingresa a mano desde
+// el panel. (La tabla se llama "bares" desde la versión 0.1.)
 model Bar {
   id              Int      @id @default(autoincrement())
   nombre          String
+  // "bar" | "restaurante" | "cafe" | "comida"
+  tipo            String   @default("bar")
+  // true = tiene música en vivo (aparece con la música); false = va en "No música".
+  musicaEnVivo    Boolean  @default(true) @map("musica_en_vivo")
   comuna          String
   direccion       String?
-  genero          String // estilo principal: "Rock", "Blues"...
+  genero          String // estilo de música ("Rock", "Blues"...) o tipo de cocina ("Sushi")
+  imagenUrl       String?  @map("imagen_url")
+  horario         String? // texto libre: "Mar a sáb, 19:00 a 02:00"
+  telefono        String? // teléfono o WhatsApp
   nivelPrecio     String   @default("$$") @map("nivel_precio") // "$", "$$" o "$$$"
   entradaLiberada Boolean  @default(false) @map("entrada_liberada")
   descripcion     String?
@@ -239,6 +251,7 @@ model Bar {
   // true = dato inventado de la maqueta. El sitio lo marca como "ejemplo".
   esEjemplo       Boolean  @default(false) @map("es_ejemplo")
   creadoEn        DateTime @default(now()) @map("creado_en")
+  actualizadoEn   DateTime @default(now()) @updatedAt @map("actualizado_en")
 
   programacion ShowBar[]
 
@@ -256,4 +269,29 @@ model ShowBar {
 
   @@index([barId])
   @@map("bares_programacion")
+}
+
+// Datos que solo tienen los eventos cargados a mano: cómo se consiguen las
+// entradas. Una fila por función (cada función es un evento).
+model EventoManual {
+  eventoId      Int      @id @map("evento_id")
+  evento        Evento   @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  // "link" (compra en un sitio) | "contacto" (teléfono, WhatsApp o correo) |
+  // "puerta" (venta en la puerta) | "inscripcion" (gratis con inscripción)
+  formaCompra   String   @map("forma_compra")
+  contacto      String?
+  creadoEn      DateTime @default(now()) @map("creado_en")
+
+  @@map("eventos_manuales")
+}
+
+// Fotos subidas desde el panel (afiches de eventos y fotos de locales). Se
+// guardan ya achicadas (máx. 1600 px) y el sitio las sirve en /imagenes/<id>.
+model Imagen {
+  id       Int      @id @default(autoincrement())
+  tipo     String // "image/jpeg"
+  datos    Bytes
+  creadoEn DateTime @default(now()) @map("creado_en")
+
+  @@map("imagenes")
 }
