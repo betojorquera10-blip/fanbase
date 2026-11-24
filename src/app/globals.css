@@ -267,6 +267,13 @@ h1 { font-size: clamp(34px, 7vw, 72px); line-height: .98; margin: 10px 0 14px; m
 .adm-nav { flex-wrap: wrap; justify-content: flex-end }
 .adm section { margin-top: 28px }
 .adm-cargando { padding-top: 40px; color: var(--muted) }
+.adm-sesion { display: flex; align-items: center; gap: 10px; font-size: 14px; white-space: nowrap }
+.adm-entrar { max-width: 380px; margin: 12vh auto 0; padding: 0 18px }
+.adm-entrar .brand { margin-bottom: 22px }
+.adm-entrar h1 { margin: 0 0 18px; font-size: 26px }
+.adm-entrar form { display: grid; gap: 14px }
+.adm-entrar .primary { border: none; font: inherit; font-weight: 700; cursor: pointer }
+.adm-entrar .primary:disabled { opacity: .6; cursor: wait }
 .adm-titulo h1 { margin: 0 0 6px; font-size: 32px }
 .adm-titulo p { margin: 0 }
 .adm-titulo-con-boton { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap }

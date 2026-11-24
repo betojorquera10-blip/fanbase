@@ -1,10 +1,10 @@
-import { exigirClave } from "@/lib/admin/acceso";
+import { exigirSesion } from "@/lib/admin/sesion";
 import { generosConocidos, lugaresConocidos } from "@/lib/admin/manuales";
 import { EVENTO_VACIO } from "@/lib/admin/opciones";
 import { FormularioEvento } from "../formulario-evento";
 
 export default async function NuevoEvento({ params }: PageProps<"/admin/[clave]/eventos/nuevo">) {
-  exigirClave((await params).clave);
+  await exigirSesion((await params).clave);
   const [generos, lugares] = await Promise.all([generosConocidos(), lugaresConocidos()]);
   return (
     <>

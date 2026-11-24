@@ -2,7 +2,7 @@
 // y lo que cuesta mantenerlo actualizado.
 
 import Link from "next/link";
-import { exigirClave } from "@/lib/admin/acceso";
+import { exigirSesion } from "@/lib/admin/sesion";
 import { resumenPanel } from "@/lib/admin/resumen";
 import { FormFuente } from "./componentes";
 
@@ -28,7 +28,7 @@ function Lista({ titulo, filas, total }: { titulo: string; filas: { nombre: stri
 
 export default async function PanelResumen({ params }: PageProps<"/admin/[clave]">) {
   const { clave } = await params;
-  exigirClave(clave);
+  await exigirSesion(clave);
   const r = await resumenPanel();
   const usoBase = r.base.bytes / r.base.limite;
   const proyeccion = (x: number) => (r.consumo.dias ? (x / r.consumo.dias) * 30 : 0);

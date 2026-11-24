@@ -1,11 +1,11 @@
 "use server";
 
-// Acciones del panel de administración. Cada una revisa el link secreto: una
-// acción se puede llamar directamente, sin pasar por la página.
+// Acciones del panel de administración. Cada una revisa el link secreto y la
+// sesión: una acción se puede llamar directamente, sin pasar por la página.
 
 import { redirect } from "next/navigation";
 import { updateTag } from "next/cache";
-import { claveValida } from "@/lib/admin/acceso";
+import { revisarSesion, salir } from "@/lib/admin/sesion";
 import {
   borrarEvento, borrarLocal, cambiarVisibilidadEvento, cambiarVisibilidadLocal, guardarEvento, guardarFoto, guardarFuente,
   guardarLocal, validarEvento, validarLocal, type DatosEvento, type DatosLocal, type Errores,
@@ -16,8 +16,11 @@ export interface Estado {
   ok?: string;
 }
 
-function revisar(clave: string) {
-  if (!claveValida(clave)) throw new Error("Link de administración no válido.");
+const revisar = revisarSesion;
+
+export async function salirAccion(clave: string) {
+  await salir();
+  redirect(`/admin/${clave}/entrar`);
 }
 
 // El sitio guarda la cartelera unos minutos; tras un cambio se refresca al tiro.
@@ -34,7 +37,7 @@ function leerJson<T>(formData: FormData): T | null {
 // ── Eventos ──
 
 export async function guardarEventoAccion(clave: string, grupo: string | null, _previo: Estado, formData: FormData): Promise<Estado> {
-  revisar(clave);
+  await revisar(clave);
   const datos = leerJson<DatosEvento>(formData);
   if (!datos) return { errores: ["No se pudo leer el formulario. Recarga la página e intenta de nuevo."] };
   const errores = validarEvento(datos);
@@ -45,13 +48,13 @@ export async function guardarEventoAccion(clave: string, grupo: string | null, _
 }
 
 export async function visibilidadEventoAccion(clave: string, grupo: string, visible: boolean) {
-  revisar(clave);
+  await revisar(clave);
   await cambiarVisibilidadEvento(grupo, visible);
   refrescarSitio();
 }
 
 export async function borrarEventoAccion(clave: string, grupo: string) {
-  revisar(clave);
+  await revisar(clave);
   await borrarEvento(grupo);
   refrescarSitio();
 }
@@ -59,7 +62,7 @@ export async function borrarEventoAccion(clave: string, grupo: string) {
 // ── Locales ──
 
 export async function guardarLocalAccion(clave: string, id: number | null, _previo: Estado, formData: FormData): Promise<Estado> {
-  revisar(clave);
+  await revisar(clave);
   const datos = leerJson<DatosLocal>(formData);
   if (!datos) return { errores: ["No se pudo leer el formulario. Recarga la página e intenta de nuevo."] };
   const errores = validarLocal(datos);
@@ -70,13 +73,13 @@ export async function guardarLocalAccion(clave: string, id: number | null, _prev
 }
 
 export async function visibilidadLocalAccion(clave: string, id: number, visible: boolean) {
-  revisar(clave);
+  await revisar(clave);
   await cambiarVisibilidadLocal(id, visible);
   refrescarSitio();
 }
 
 export async function borrarLocalAccion(clave: string, id: number) {
-  revisar(clave);
+  await revisar(clave);
   await borrarLocal(id);
   refrescarSitio();
 }
@@ -84,7 +87,7 @@ export async function borrarLocalAccion(clave: string, id: number) {
 // ── Fotos ──
 
 export async function subirFotoAccion(clave: string, formData: FormData): Promise<{ url?: string; error?: string }> {
-  revisar(clave);
+  await revisar(clave);
   const archivo = formData.get("foto");
   if (!(archivo instanceof File) || archivo.size === 0) return { error: "No llegó ninguna foto." };
   try {
@@ -97,7 +100,7 @@ export async function subirFotoAccion(clave: string, formData: FormData): Promis
 // ── Fuentes ──
 
 export async function guardarFuenteAccion(clave: string, id: string, _previo: Estado, formData: FormData): Promise<Estado> {
-  revisar(clave);
+  await revisar(clave);
   const errores = await guardarFuente(id, {
     activa: formData.get("activa") === "on",
     horasEntreListados: Number(formData.get("horas")),

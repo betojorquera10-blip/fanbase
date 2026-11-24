@@ -1,10 +1,10 @@
-import { exigirClave } from "@/lib/admin/acceso";
+import { exigirSesion } from "@/lib/admin/sesion";
 import { generosConocidos } from "@/lib/admin/manuales";
 import { LOCAL_VACIO } from "@/lib/admin/opciones";
 import { FormularioLocal } from "../formulario-local";
 
 export default async function NuevoLocal({ params }: PageProps<"/admin/[clave]/locales/nuevo">) {
-  exigirClave((await params).clave);
+  await exigirSesion((await params).clave);
   const generos = await generosConocidos();
   return (
     <>

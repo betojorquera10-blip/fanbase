@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
-import { exigirClave } from "@/lib/admin/acceso";
+import { exigirSesion } from "@/lib/admin/sesion";
 import { generosConocidos, leerEvento, lugaresConocidos } from "@/lib/admin/manuales";
 import { FormularioEvento } from "../formulario-evento";
 
 export default async function EditarEvento({ params }: PageProps<"/admin/[clave]/eventos/[grupo]">) {
   const { clave, grupo } = await params;
-  exigirClave(clave);
+  await exigirSesion(clave);
   const [evento, generos, lugares] = await Promise.all([leerEvento(grupo), generosConocidos(), lugaresConocidos()]);
   if (!evento) notFound();
   return (

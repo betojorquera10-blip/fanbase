@@ -295,3 +295,37 @@ model Imagen {
 
   @@map("imagenes")
 }
+
+// ── Acceso al panel de administración ─────────────────────────────────────
+// Cada base tiene sus propias cuentas: staging y producción no se mezclan
+// (copiar-a-staging no toca estas tablas). Las cuentas se crean con
+// `npm run admin:cuenta`; la contraseña nunca se guarda, solo su huella scrypt.
+
+model AdminUsuario {
+  id               Int       @id @default(autoincrement())
+  usuario          String    @unique // con qué se ingresa, en minúsculas
+  nombre           String // cómo se muestra en el panel
+  claveHash        String    @map("clave_hash")
+  activo           Boolean   @default(true)
+  intentosFallidos Int       @default(0) @map("intentos_fallidos")
+  bloqueadoHasta   DateTime? @map("bloqueado_hasta")
+  ultimoIngresoEn  DateTime? @map("ultimo_ingreso_en")
+  creadoEn         DateTime  @default(now()) @map("creado_en")
+
+  sesiones AdminSesion[]
+
+  @@map("admin_usuarios")
+}
+
+// Una sesión abierta. El navegador guarda un código al azar; acá solo va su
+// huella SHA-256, así que leer la tabla no sirve para entrar.
+model AdminSesion {
+  id        String       @id // huella del código de la cookie
+  usuarioId Int          @map("usuario_id")
+  usuario   AdminUsuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expiraEn  DateTime     @map("expira_en")
+  creadoEn  DateTime     @default(now()) @map("creado_en")
+
+  @@index([usuarioId])
+  @@map("admin_sesiones")
+}

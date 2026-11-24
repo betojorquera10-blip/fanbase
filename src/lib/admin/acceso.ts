@@ -1,7 +1,7 @@
-// Acceso al panel de administración por "link secreto", sin usuario ni clave:
-// el panel vive en /admin/<FANBASE_ADMIN_LINK> y cualquier otra dirección
-// responde "página no encontrada". Pensado para la etapa de pruebas con pocas
-// personas; antes de usarlo en producción hay que agregar inicio de sesión.
+// Primer candado del panel de administración: el "link secreto". El panel y su
+// página de ingreso viven en /admin/<FANBASE_ADMIN_LINK> y cualquier otra
+// dirección responde "página no encontrada", así los bots ni siquiera llegan a
+// probar contraseñas. El segundo candado es la cuenta (sesion.ts).
 //
 // El link no puede ir escrito en el código porque el repositorio es público:
 // se define en el .env (y en Netlify). Sin esa variable el panel no existe.

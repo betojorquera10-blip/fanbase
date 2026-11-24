@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { exigirClave } from "@/lib/admin/acceso";
+import { exigirSesion } from "@/lib/admin/sesion";
 import { listarEventosManuales } from "@/lib/admin/manuales";
 import { formatearFecha } from "@/lib/fechas";
 import { borrarEventoAccion, visibilidadEventoAccion } from "../acciones";
@@ -9,7 +9,7 @@ const AVISOS: Record<string, string> = { creado: "Evento publicado.", editado: "
 
 export default async function EventosManuales({ params, searchParams }: PageProps<"/admin/[clave]/eventos">) {
   const { clave } = await params;
-  exigirClave(clave);
+  await exigirSesion(clave);
   const { listo } = await searchParams;
   const eventos = await listarEventosManuales();
 

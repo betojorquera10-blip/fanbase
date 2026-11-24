@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { exigirClave } from "@/lib/admin/acceso";
+import { exigirSesion } from "@/lib/admin/sesion";
 import { listarLocales } from "@/lib/admin/manuales";
 import { nombreTipoLocal } from "@/lib/admin/opciones";
 import { borrarLocalAccion, visibilidadLocalAccion } from "../acciones";
@@ -9,7 +9,7 @@ const AVISOS: Record<string, string> = { creado: "Local publicado.", editado: "C
 
 export default async function Locales({ params, searchParams }: PageProps<"/admin/[clave]/locales">) {
   const { clave } = await params;
-  exigirClave(clave);
+  await exigirSesion(clave);
   const { listo } = await searchParams;
   const locales = await listarLocales();
 
